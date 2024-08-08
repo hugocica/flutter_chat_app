@@ -15,12 +15,13 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final _form = GlobalKey<FormState>();
 
+  bool _isLoading = false;
   bool _isLogin = true;
   bool _isPasswordVisible = false;
   String _email = '';
   String _password = '';
 
-  void _onSignup() async {
+  Future<void> _onSignup() async {
     try {
       final userCredentials = await _firebase.createUserWithEmailAndPassword(
           email: _email, password: _password);
@@ -36,7 +37,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  void _onLogin() async {
+  Future<void> _onLogin() async {
     try {
       final userCredentials = await _firebase.signInWithEmailAndPassword(
           email: _email, password: _password);
@@ -50,18 +51,26 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  void _onSubmit() {
+  void _onSubmit() async {
     if (!_form.currentState!.validate()) {
       return;
     }
 
     _form.currentState!.save();
 
+    setState(() {
+      _isLoading = true;
+    });
+
     if (_isLogin) {
-      return _onLogin();
+      await _onLogin();
+    } else {
+      await _onSignup();
     }
 
-    return _onSignup();
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   @override
@@ -147,15 +156,25 @@ class _AuthScreenState extends State<AuthScreen> {
                               backgroundColor: Theme.of(context)
                                   .colorScheme
                                   .primaryContainer),
-                          child: Text(_isLogin ? 'Login' : 'Signup'),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(_isLogin ? 'Login' : 'Signup'),
                         ),
                         TextButton(
-                          onPressed: () {
-                            _form.currentState!.reset();
-                            setState(() {
-                              _isLogin = !_isLogin;
-                            });
-                          },
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  _form.currentState!.reset();
+                                  setState(() {
+                                    _isLogin = !_isLogin;
+                                  });
+                                },
                           child: Text(_isLogin
                               ? 'Create an account'
                               : 'I already have an account'),
