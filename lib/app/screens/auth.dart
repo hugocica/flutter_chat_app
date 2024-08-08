@@ -1,4 +1,9 @@
+import 'dart:io';
+
+import 'package:chat_app/app/widgets/user_image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 
 final _firebase = FirebaseAuth.instance;
@@ -15,16 +20,36 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final _form = GlobalKey<FormState>();
 
-  bool _isLoading = false;
+  bool _isSubmitting = false;
   bool _isLogin = true;
   bool _isPasswordVisible = false;
+
   String _email = '';
   String _password = '';
+  String _username = '';
+  File? _userImage;
 
   Future<void> _onSignup() async {
     try {
       final userCredentials = await _firebase.createUserWithEmailAndPassword(
           email: _email, password: _password);
+
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('user_images')
+          .child('${userCredentials.user!.uid}.jpg');
+
+      await storageRef.putFile(_userImage!);
+      final imageUrl = await storageRef.getDownloadURL();
+
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredentials.user!.uid)
+          .set({
+        'username': _username,
+        'email': _email,
+        'image_url': imageUrl,
+      });
     } on FirebaseAuthException catch (error) {
       if (error.code == 'email-already-in-use') {}
 
@@ -52,14 +77,14 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   void _onSubmit() async {
-    if (!_form.currentState!.validate()) {
+    if (!_form.currentState!.validate() || (!_isLogin && _userImage == null)) {
       return;
     }
 
     _form.currentState!.save();
 
     setState(() {
-      _isLoading = true;
+      _isSubmitting = true;
     });
 
     if (_isLogin) {
@@ -68,9 +93,11 @@ class _AuthScreenState extends State<AuthScreen> {
       await _onSignup();
     }
 
-    setState(() {
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
   }
 
   @override
@@ -101,6 +128,14 @@ class _AuthScreenState extends State<AuthScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (!_isLogin)
+                          UserImagePicker(
+                            onPickImage: (image) {
+                              setState(() {
+                                _userImage = image;
+                              });
+                            },
+                          ),
                         TextFormField(
                           decoration: const InputDecoration(labelText: 'Email'),
                           keyboardType: TextInputType.emailAddress,
@@ -119,6 +154,24 @@ class _AuthScreenState extends State<AuthScreen> {
                             _email = value!;
                           },
                         ),
+                        if (!_isLogin)
+                          TextFormField(
+                            decoration:
+                                const InputDecoration(labelText: 'Username'),
+                            enableSuggestions: false,
+                            validator: (value) {
+                              if (value == null ||
+                                  value.trim().isEmpty ||
+                                  value.trim().length < 4) {
+                                return 'Please enter at least 4 characters';
+                              }
+
+                              return null;
+                            },
+                            onSaved: (value) {
+                              _username = value!;
+                            },
+                          ),
                         TextFormField(
                           decoration: InputDecoration(
                             labelText: 'Password',
@@ -151,12 +204,12 @@ class _AuthScreenState extends State<AuthScreen> {
                           height: 12,
                         ),
                         ElevatedButton(
-                          onPressed: _onSubmit,
+                          onPressed: _isSubmitting ? null : _onSubmit,
                           style: ElevatedButton.styleFrom(
                               backgroundColor: Theme.of(context)
                                   .colorScheme
                                   .primaryContainer),
-                          child: _isLoading
+                          child: _isSubmitting
                               ? const SizedBox(
                                   width: 20,
                                   height: 20,
@@ -167,7 +220,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               : Text(_isLogin ? 'Login' : 'Signup'),
                         ),
                         TextButton(
-                          onPressed: _isLoading
+                          onPressed: _isSubmitting
                               ? null
                               : () {
                                   _form.currentState!.reset();
@@ -175,9 +228,11 @@ class _AuthScreenState extends State<AuthScreen> {
                                     _isLogin = !_isLogin;
                                   });
                                 },
-                          child: Text(_isLogin
-                              ? 'Create an account'
-                              : 'I already have an account'),
+                          child: Text(
+                            _isLogin
+                                ? 'Create an account'
+                                : 'I already have an account',
+                          ),
                         ),
                       ],
                     ),
