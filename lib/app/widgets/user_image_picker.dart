@@ -19,6 +19,24 @@ class _UserImagePickerState extends State<UserImagePicker> {
 
   void _pickImage() async {
     final pickedImage = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 50,
+      maxWidth: 150,
+    );
+
+    if (pickedImage == null) {
+      return;
+    }
+
+    setState(() {
+      _userImage = File(pickedImage.path);
+    });
+
+    widget.onPickImage(_userImage!);
+  }
+
+  void _takePhoto() async {
+    final pickedImage = await ImagePicker().pickImage(
       source: ImageSource.camera,
       imageQuality: 50,
       maxWidth: 150,
@@ -48,9 +66,17 @@ class _UserImagePickerState extends State<UserImagePicker> {
                   title: const Text('Camera'),
                   onTap: () {
                     Navigator.of(context).pop();
+                    _takePhoto();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo),
+                  title: const Text('Gallery'),
+                  onTap: () {
+                    Navigator.of(context).pop();
                     _pickImage();
                   },
-                )
+                ),
               ],
             ),
           );
