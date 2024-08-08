@@ -1,4 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+final _firebase = FirebaseAuth.instance;
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -13,17 +16,52 @@ class _AuthScreenState extends State<AuthScreen> {
   final _form = GlobalKey<FormState>();
 
   bool _isLogin = true;
+  bool _isPasswordVisible = false;
   String _email = '';
   String _password = '';
 
-  void _onSignup() {}
+  void _onSignup() async {
+    try {
+      final userCredentials = await _firebase.createUserWithEmailAndPassword(
+          email: _email, password: _password);
+    } on FirebaseAuthException catch (error) {
+      if (error.code == 'email-already-in-use') {}
 
-  void _onLogin() {}
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message ?? 'Authentication failed'),
+        ),
+      );
+    }
+  }
+
+  void _onLogin() async {
+    try {
+      final userCredentials = await _firebase.signInWithEmailAndPassword(
+          email: _email, password: _password);
+    } on FirebaseAuthException catch (error) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message ?? 'Authentication failed'),
+        ),
+      );
+    }
+  }
 
   void _onSubmit() {
-    if (_form.currentState!.validate()) {
-      _form.currentState!.save();
+    if (!_form.currentState!.validate()) {
+      return;
     }
+
+    _form.currentState!.save();
+
+    if (_isLogin) {
+      return _onLogin();
+    }
+
+    return _onSignup();
   }
 
   @override
@@ -73,9 +111,22 @@ class _AuthScreenState extends State<AuthScreen> {
                           },
                         ),
                         TextFormField(
-                          decoration:
-                              const InputDecoration(labelText: 'Password'),
-                          obscureText: true,
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _isPasswordVisible = !_isPasswordVisible;
+                                });
+                              },
+                              icon: Icon(
+                                !_isPasswordVisible
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                            ),
+                          ),
+                          obscureText: !_isPasswordVisible,
                           validator: (value) {
                             if (value == null || value.trim().length < 6) {
                               return 'Password must be at least 6 characters long.';
