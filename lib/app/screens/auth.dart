@@ -151,6 +151,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                         TextButton(
                           onPressed: () {
+                            _form.currentState!.reset();
                             setState(() {
                               _isLogin = !_isLogin;
                             });
